@@ -9,16 +9,33 @@ use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
 use App\Http\Middleware\Authorization;
 
-class UserController extends Controller
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
+
+class UserController extends Controller implements HasMiddleware
 {
     
-    public function __construct() {
-        $this->middleware(Authorization::class)->except(['create', 'store', 'login']);
+    public static function middleware(): array
+    {
+        return [
+            Authorization::class
+        ];
     }
 
     public function index()
     {
-        
+        $user = Auth::user();
+
+        $user->makeHidden(['x_cord', 'y_cord']);
+
+        return Inertia::render('User/index', [
+            'user' => $user,
+            'window' => 'dashboard',
+            'extra' => null
+        ]);
     }
 
     /**
@@ -26,7 +43,7 @@ class UserController extends Controller
      */
     public function create()
     {
-        //
+        return Inertia::render("User/auth");
     }
 
     /**
@@ -34,38 +51,35 @@ class UserController extends Controller
      */
     public function store(StoreUserRequest $request)
     {
-        //
+        $validated = $request->validated();
+
+        $user = User::create($validated);
+
+        Auth::login($user);
+
+        return redirect()->route('user.index');
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(User $user)
-    {
-        //
+    public function login(Request $request) {
+        $validated = $request->validate([
+            'email' => 'required',
+            'password' => 'required|min:8'
+        ]);
+
+        if (Auth::attempt($validated)) {
+            $request->session()->regenerate();
+
+            return redirect()->route('user.index');
+        }
+
+        return back()->withErrors([
+            'message' => 'invalid credentials.'
+        ]);
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(User $user)
-    {
-        //
-    }
+    public function logout() {
+        Auth::logout();
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(UpdateUserRequest $request, User $user)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(User $user)
-    {
-        //
+        return redirect()->route("user.create");
     }
 }
